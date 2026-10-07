@@ -1,0 +1,1157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能主动唤醒</title>
+<style>
+  :root {
+    --bg: #f5f6fa; --card: #ffffff; --border: #e3e6ee; --text: #2b3245;
+    --muted: #8a91a6; --primary: #4c6fff; --primary-soft: #eef1ff;
+    --primary-border: #d4e0fc; --danger: #e5534b; --ok: #2da44e; --radius: 10px;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 24px; background: var(--bg); color: var(--text);
+         font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif; font-size: 14px; }
+  h1 { font-size: 20px; margin: 0 0 4px; font-weight: 700; }
+  .sub { color: var(--muted); margin-bottom: 20px; }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+          margin-bottom: 14px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.02); }
+  .card-head { display: flex; align-items: center; gap: 10px; padding: 12px 16px;
+               cursor: pointer; user-select: none; background: #fff; }
+  .card-head:hover { background: #fafbfe; }
+  .card-head .title { font-weight: 600; font-size: 14px; }
+  .card-head .badge { font-size: 12px; color: var(--primary); background: var(--primary-soft);
+                      padding: 2px 8px; border-radius: 10px; font-weight: 500; }
+  .card-head .spacer { flex: 1; }
+  .card-body { padding: 10px 16px 16px; border-top: 1px solid var(--border); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px dashed #eef0f5; }
+  .row:last-child { border-bottom: none; }
+  .row .label { width: 220px; flex-shrink: 0; font-size: 13px; font-weight: 500; }
+  .row .label .hint { display: block; font-size: 12px; color: var(--muted); font-weight: normal; margin-top: 2px; }
+  .row .field { flex: 1; min-width: 0; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--border); border-radius: 6px;
+    font-size: 13px; font-family: inherit; background: #fff; color: var(--text); transition: border-color .15s; }
+  input:focus, select:focus, textarea:focus { outline: none; border-color: var(--primary); }
+  textarea { resize: vertical; min-height: 48px; font-family: ui-monospace, monospace; }
+  .btn { padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); background: #fff;
+         cursor: pointer; font-size: 13px; color: var(--text); font-weight: 500; transition: all .15s; }
+  .btn:hover { border-color: var(--primary); color: var(--primary); }
+  .btn.primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .btn.primary:hover { opacity: .92; }
+  .btn.icon { padding: 4px 8px; line-height: 1; }
+  .btn.danger:hover { border-color: var(--danger); color: var(--danger); }
+  .switch { position: relative; display: inline-block; width: 44px; height: 22px; flex-shrink: 0; vertical-align: middle; cursor: pointer; }
+  .switch input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .switch .sl { position: absolute; inset: 0; background: #c6cbd4; border-radius: 22px; transition: .2s; border: 1px solid #b2b8c4; }
+  .switch .sl:before { content: ""; position: absolute; width: 18px; height: 18px; left: 1px; top: 1px;
+                       background: #fff; border-radius: 50%; transition: .2s; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+  .switch input:checked + .sl { background: var(--primary); border-color: var(--primary); }
+  .switch input:checked + .sl:before { transform: translateX(22px); }
+  .toolbar { display: flex; gap: 10px; align-items: center; margin-bottom: 16px; flex-wrap: wrap; }
+  #toast { position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+           background: #323a4d; color: #fff; padding: 10px 20px; border-radius: 8px;
+           opacity: 0; transition: .25s; pointer-events: none; z-index: 9999; max-width: 80%; font-size: 13px; }
+  #toast.show { opacity: 1; }
+  #toast.err { background: var(--danger); }
+  .test-result { font-size: 12px; margin-left: 8px; }
+  .test-result.ok { color: var(--ok); }
+  .test-result.fail { color: var(--danger); }
+
+  /* 话题表格 */
+  table.grid { width: 100%; border-collapse: collapse; font-size: 12px; }
+  table.grid th, table.grid td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: middle; }
+  table.grid th { background: #f7f8fc; font-weight: 600; color: #4e5969; }
+  table.grid input[type=text], table.grid input[type=number] { padding: 4px 6px; font-size: 12px; }
+  .scroll-x { overflow-x: auto; }
+
+  /* 标签胶囊预览组件 */
+  .tag-preview-wrap { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-height: 28px; }
+  .tag-pill { display: inline-flex; align-items: center; background: #e8f3ff; color: #1677ff;
+              border: 1px solid #d4e7ff; border-radius: 4px; padding: 2px 7px; font-size: 12px; font-weight: 500; }
+  .tag-count { display: inline-flex; align-items: center; background: #f0f2f5; color: #646a73;
+               border-radius: 4px; padding: 2px 6px; font-size: 11px; font-weight: 600; }
+  .tag-empty { color: var(--muted); font-size: 12px; }
+  .btn-tag-manage { background: #f2f5fc; color: #4c6fff; border: 1px solid #dbe2f4; border-radius: 4px;
+                    padding: 3px 9px; font-size: 12px; cursor: pointer; font-weight: 500; transition: all .15s; }
+  .btn-tag-manage:hover { background: #4c6fff; color: #fff; border-color: #4c6fff; }
+
+  /* 正方形双列曲线图布局 */
+  .curves-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 14px; }
+  @media (max-width: 860px) { .curves-grid { grid-template-columns: 1fr; } }
+  .curve-card { margin-bottom: 0; }
+  .curve-canvas-wrap { position: relative; width: 100%; aspect-ratio: 1 / 1; max-height: 420px; }
+  canvas.curve { width: 100%; height: 100%; border: 1px solid var(--border); border-radius: 8px;
+                 background: #ffffff; cursor: crosshair; touch-action: none; display: block; }
+  .curve-info { font-size: 12px; color: var(--muted); margin-top: 8px; line-height: 1.4; }
+
+  /* 曲线坐标上限调节栏 */
+  .curve-ctrl-bar { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+                     margin-bottom: 10px; padding: 6px 12px; background: #f7f9fd; border: 1px solid var(--border);
+                     border-radius: 6px; font-size: 12px; flex-wrap: wrap; }
+  .range-group { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .range-item { display: inline-flex; align-items: center; gap: 5px; color: #4e5969; font-weight: 500; }
+  .range-item input { width: 72px; padding: 3px 6px; font-size: 12px; border-radius: 4px; }
+
+  /* 曲线控制点数值列表 */
+  .curve-points-section { margin-top: 10px; border: 1px solid var(--border); border-radius: 8px;
+                          background: #fafbfe; padding: 8px 12px; }
+  .points-head { display: flex; align-items: center; justify-content: space-between;
+                 font-size: 12px; font-weight: 600; color: #4e5969; margin-bottom: 8px; }
+  .points-rows { display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; padding-right: 4px; }
+  .point-row { display: flex; align-items: center; gap: 8px; background: #fff; padding: 4px 8px;
+               border: 1px solid #eef0f5; border-radius: 4px; font-size: 12px; }
+  .point-row .pt-idx { color: var(--muted); font-weight: 600; width: 28px; }
+  .point-row input { width: 74px; padding: 2px 6px; font-size: 12px; }
+  .point-row .del-pt { cursor: pointer; color: var(--muted); margin-left: auto; font-weight: bold; font-size: 14px; padding: 0 4px; }
+  .point-row .del-pt:hover { color: var(--danger); }
+
+  .tag { display: inline-block; padding: 1px 7px; border-radius: 8px; font-size: 11px;
+         background: var(--primary-soft); color: var(--primary); }
+  .tag.off { background: #f0f1f5; color: var(--muted); }
+  .tag.warn { background: #fdf0ef; color: var(--danger); }
+
+  /* 标签弹窗 */
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000;
+                   display: flex; align-items: center; justify-content: center; backdrop-filter: blur(2px); }
+  .modal-window { background: #fff; width: 560px; max-width: 92vw; border-radius: 12px;
+                  box-shadow: 0 16px 40px rgba(0,0,0,0.18); overflow: hidden; display: flex; flex-direction: column; max-height: 85vh; }
+  .modal-header { padding: 14px 20px; border-bottom: 1px solid var(--border); display: flex;
+                  align-items: center; justify-content: space-between; font-weight: 600; font-size: 15px; }
+  .modal-body { padding: 16px 20px; overflow-y: auto; flex: 1; }
+  .modal-footer { padding: 12px 20px; border-top: 1px solid var(--border); display: flex;
+                  justify-content: space-between; align-items: center; background: #fafbfe; }
+  .modal-tag-box { display: flex; flex-wrap: wrap; gap: 7px; max-height: 260px; overflow-y: auto;
+                   padding: 10px; border: 1px solid var(--border); border-radius: 8px; background: #fafbfe; min-height: 80px; align-content: flex-start; }
+  .modal-tag-item { display: inline-flex; align-items: center; gap: 5px; background: #e8f3ff; color: #1677ff;
+                    border: 1px solid #d4e7ff; border-radius: 4px; padding: 3px 8px; font-size: 13px; }
+  .modal-tag-item .del-tag { cursor: pointer; color: #8a91a6; font-weight: bold; border-radius: 50%;
+                             width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; }
+  .modal-tag-item .del-tag:hover { color: #e5534b; background: #ffebeb; }
+  .tag-add-bar { display: flex; gap: 8px; margin-bottom: 12px; }
+  .tag-add-bar input { flex: 1; }
+  .batch-box { margin-top: 14px; border: 1px dashed var(--border); border-radius: 8px; padding: 10px; background: #fff; }
+  .batch-box summary { cursor: pointer; font-size: 12px; color: var(--muted); user-select: none; font-weight: 500; }
+  .batch-box textarea { width: 100%; height: 60px; margin-top: 8px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <h1>🔔 智能主动唤醒</h1>
+  <div class="sub">关键词抽签 → Jev 模型判定两级漏斗。修改任意配置后记得点「保存全部配置」。</div>
+
+  <div class="toolbar">
+    <button class="btn primary" id="saveBtn">💾 保存全部配置</button>
+    <button class="btn" id="reloadBtn">↻ 重新加载</button>
+  </div>
+
+  <!-- 1. Jev API 配置 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">Jev API 配置</span></div>
+    <div class="card-body">
+      <div class="row">
+        <div class="label">通道</div>
+        <div class="field"><select id="c_jev_channel">
+          <option value="official">official（TypeSafe AI 官方直连）</option>
+          <option value="openrouter">openrouter（OpenRouter 中转）</option>
+        </select></div>
+      </div>
+      <div class="row">
+        <div class="label">API 地址<span class="hint">official 默认 https://api.typesafe.ai；openrouter 默认 https://openrouter.ai</span></div>
+        <div class="field"><input type="text" id="c_jev_base_url"></div>
+      </div>
+      <div class="row">
+        <div class="label">模型<span class="hint">jev-1.13.0 / jev-latest / jev-preview；openrouter 通道自动映射为 typesafe/jev-1.13</span></div>
+        <div class="field"><input type="text" id="c_jev_model"></div>
+      </div>
+      <div class="row">
+        <div class="label">API Key 列表<span class="hint">每行一个，轮询使用，失败自动冷却</span></div>
+        <div class="field"><textarea id="c_jev_api_keys" placeholder="粘贴你的 Jev API Key"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">请求超时（秒）</div>
+        <div class="field"><input type="number" id="c_jev_timeout" min="1"></div>
+      </div>
+      <div class="row">
+        <div class="label">Key 失败冷却（秒）</div>
+        <div class="field"><input type="number" id="c_key_cooldown_seconds" min="0"></div>
+      </div>
+      <div class="row">
+        <div class="label"></div>
+        <div class="field">
+          <button class="btn" onclick="testJev()">🧪 测试连接</button>
+          <span class="test-result" id="jevTestRes"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. 话题评分表 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">话题评分表</span>
+      <span class="badge" id="topicCount"></span><span class="spacer"></span>
+      <button class="btn" onclick="event.stopPropagation(); addTopic()">＋ 添加话题</button>
+    </div>
+    <div class="card-body scroll-x">
+      <table class="grid" id="topicTable">
+        <thead><tr>
+          <th style="width:120px">key</th>
+          <th style="width:90px">显示名</th>
+          <th style="min-width:240px">关键词（点击管理）</th>
+          <th style="width:140px">分值 0-10</th>
+          <th style="width:90px">冷却（秒）</th>
+          <th style="width:70px">问答类</th>
+          <th style="width:40px"></th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 3. 正方形双列曲线编辑器（支持全自定义坐标上限与精确数值修改） -->
+  <div class="curves-grid">
+    <!-- 对话超时曲线 -->
+    <div class="card curve-card">
+      <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">对话超时曲线</span>
+        <span class="badge">x=回复字数, y=超时秒数</span></div>
+      <div class="card-body">
+        <div class="curve-ctrl-bar">
+          <div class="range-group">
+            <span class="range-item">X轴上限 (回复字数): <input type="number" id="timeout_x_max" min="10" step="50" onchange="timeoutEditor.setLimits(parseFloat(this.value), null)"> 字</span>
+            <span class="range-item">Y轴上限 (超时秒数): <input type="number" id="timeout_y_max" min="5" step="10" onchange="timeoutEditor.setLimits(null, parseFloat(this.value))"> 秒</span>
+          </div>
+          <button class="btn btn-tag-manage" onclick="timeoutEditor.fitPoints()">🎯 适应当前点</button>
+        </div>
+        <div class="curve-canvas-wrap">
+          <canvas class="curve" id="timeoutCurve"></canvas>
+        </div>
+        <div class="curve-info">单击空白加点；拖动移动点；双击点删除（至少保留 2 个点）。<br><span id="timeoutInfo"></span></div>
+        <div class="curve-points-section">
+          <div class="points-head">
+            <span>控制点列表（支持直接修改数值）：</span>
+            <button class="btn btn-tag-manage" onclick="timeoutEditor.addPointAuto()">＋ 添加点</button>
+          </div>
+          <div class="points-rows" id="timeoutPointsList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 精力消耗曲线 -->
+    <div class="card curve-card">
+      <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">精力消耗曲线</span>
+        <span class="badge">x=当前精力, y=本次消耗</span></div>
+      <div class="card-body">
+        <div class="curve-ctrl-bar">
+          <div class="range-group">
+            <span class="range-item">X轴上限 (当前精力): <input type="number" id="energy_x_max" min="10" step="10" onchange="energyEditor.setLimits(parseFloat(this.value), null)"> 点</span>
+            <span class="range-item">Y轴上限 (本次消耗): <input type="number" id="energy_y_max" min="5" step="5" onchange="energyEditor.setLimits(null, parseFloat(this.value))"> 点</span>
+          </div>
+          <button class="btn btn-tag-manage" onclick="energyEditor.fitPoints()">🎯 适应当前点</button>
+        </div>
+        <div class="curve-canvas-wrap">
+          <canvas class="curve" id="energyCurve"></canvas>
+        </div>
+        <div class="curve-info">单击空白加点；拖动移动点；双击点删除（至少保留 2 个点）。<br><span id="energyInfo"></span></div>
+        <div class="curve-points-section">
+          <div class="points-head">
+            <span>控制点列表（支持直接修改数值）：</span>
+            <button class="btn btn-tag-manage" onclick="energyEditor.addPointAuto()">＋ 添加点</button>
+          </div>
+          <div class="points-rows" id="energyPointsList"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. 其余数值配置 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">其余配置</span></div>
+    <div class="card-body" id="scalarForm"></div>
+  </div>
+
+  <!-- 5. Jev 预设提示词模板自定义 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">Jev 提示词模板自定义</span>
+      <span class="badge">高级调优</span><span class="spacer"></span>
+      <button class="btn btn-tag-manage" onclick="event.stopPropagation(); resetDefaultPrompts()">↺ 恢复默认提示词</button>
+    </div>
+    <div class="card-body">
+      <div class="row">
+        <div class="label">唤醒判定·回复价值提示词<span class="hint">response_value 问题 instructions</span></div>
+        <div class="field"><textarea id="p_wake_value" rows="3"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">唤醒判定·插话自然度提示词<span class="hint">natural_to_join 问题 instructions</span></div>
+        <div class="field"><textarea id="p_wake_natural" rows="3"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">会话管理·彻底结束对话提示词<span class="hint">end_conversation 问题 instructions</span></div>
+        <div class="field"><textarea id="p_end_conv" rows="3"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">会话管理·跳过本轮回复提示词<span class="hint">skip_reply 问题 instructions</span></div>
+        <div class="field"><textarea id="p_skip_reply" rows="3"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">闭嘴状态机·闭嘴判定提示词<span class="hint">支持 {bot_name} 与 {recent} 占位符</span></div>
+        <div class="field"><textarea id="p_shutup" rows="2"></textarea></div>
+      </div>
+      <div class="row">
+        <div class="label">闭嘴状态机·解除闭嘴提示词<span class="hint">支持 {bot_name} 占位符</span></div>
+        <div class="field"><textarea id="p_unmute" rows="2"></textarea></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6. 决策日志 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">决策日志（最近 200 条）</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="event.stopPropagation(); loadLogs()">↻ 刷新</button>
+    </div>
+    <div class="card-body scroll-x">
+      <table class="grid" id="logTable">
+        <thead><tr><th>时间</th><th>群</th><th>消息摘要</th><th>结果</th><th>详情</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 6. 每群状态总览 -->
+  <div class="card">
+    <div class="card-head" onclick="toggleCard(this)"><span>▾</span><span class="title">每群状态总览</span>
+      <span class="spacer"></span>
+      <button class="btn" onclick="event.stopPropagation(); loadStatus()">↻ 刷新</button>
+    </div>
+    <div class="card-body scroll-x">
+      <table class="grid" id="statusTable">
+        <thead><tr><th>群</th><th>精力</th><th>muted</th><th>会话中</th><th>5分钟热度</th><th>话题冷却剩余</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 标签管理模态弹窗 -->
+  <div id="modalWrap"></div>
+  <div id="toast"></div>
+
+<script>
+const PLUGIN = 'astrbot_plugin_smart_wake';
+
+// ---------- API（bridge 模式，照抄 websearch_hub） ----------
+let bridge = null;
+async function initBridge() {
+  for (let i = 0; i < 50; i++) {
+    const b = window.AstrBotPluginPage;
+    if (b && typeof b.ready === 'function') {
+      try {
+        await b.ready();
+        bridge = b;
+        return;
+      } catch (e) {
+        console.warn('Bridge ready() failed:', e);
+        break;
+      }
+    }
+    await new Promise(r => setTimeout(r, 100));
+  }
+  console.warn('AstrBotPluginPage bridge 未就绪，回退到直接 fetch');
+  bridge = null;
+}
+
+async function reqApi(action, endpoint, body) {
+  if (bridge) {
+    return action === 'GET'
+      ? await bridge.apiGet(endpoint, body)
+      : await bridge.apiPost(endpoint, body);
+  }
+  const res = await fetch(`/api/plug/${PLUGIN}/${endpoint}`, {
+    method: action,
+    headers: { 'Content-Type': 'application/json' },
+    body: body && action === 'POST' ? JSON.stringify(body) : undefined
+  });
+  return await res.json();
+}
+
+function toast(msg, isErr) {
+  const el = document.getElementById('toast');
+  el.innerText = msg;
+  el.className = 'show' + (isErr ? ' err' : '');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+function esc(s) { return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function toggleCard(head) {
+  const body = head.nextElementSibling;
+  const open = body.style.display !== 'none';
+  body.style.display = open ? 'none' : 'block';
+  head.firstElementChild.textContent = open ? '▸' : '▾';
+}
+
+// ---------- 配置状态 ----------
+let cfg = {};
+let topics = [];
+let timeoutCurve = [[0, 10], [300, 60]];
+let energyCurve = [[100, 10], [20, 40]];
+
+// 其余数值配置表单定义：[key, 类型, 标签, 提示]
+const SCALAR_FIELDS = [
+  ['bot_names', 'list', 'bot 群里的称呼列表', '支持添加多个称呼/昵称/别名，写进 Jev 上下文帮助精准识别'],
+  ['bot_name', 'text', 'bot 主要称呼 (兼容单项)', '单称呼兜底'],
+  ['bot_persona', 'text', 'bot 人格简述', ''],
+  ['ignore_at_other', 'bool', '艾特其他人时主动跳过', '群消息明确艾特其他人或另一个Bot时，跳过唤醒/回复'],
+  ['group_whitelist', 'list', '群白名单', '每行一个群号，留空=全部群启用'],
+  ['group_blacklist', 'list', '群/用户黑名单', '每行一个'],
+  ['must_wake_words', 'list', '必唤醒词', '命中直接唤醒不抽签'],
+  ['shutup_words', 'list', '闭嘴候选词', ''],
+  ['unmute_words', 'list', '解除闭嘴候选词', ''],
+  ['fallback_probability', 'number', '零命中兜底概率 %', '1-100'],
+  ['hot_threshold', 'number', '热度 hot 阈值', '5 分钟窗口消息数'],
+  ['cold_threshold', 'number', '热度 cold 阈值', ''],
+  ['heat_hot_casual', 'number', '热度系数 hot·闲聊', ''],
+  ['heat_hot_question', 'number', '热度系数 hot·问答', ''],
+  ['heat_cold_casual', 'number', '热度系数 cold·闲聊', ''],
+  ['heat_cold_question', 'number', '热度系数 cold·问答', ''],
+  ['festival_grace_minutes', 'number', '节日观望期（分钟）', ''],
+  ['festival_cooldown_hours', 'number', '节日话题冷却（小时）', ''],
+  ['reread_enabled', 'bool', '启用复读跟读', ''],
+  ['reread_text_threshold', 'number', '文本复读触发条数', '2-5'],
+  ['reread_image_threshold', 'number', '图片复读触发条数', ''],
+  ['reread_face_threshold', 'number', '表情复读触发条数', ''],
+  ['reread_follow_probability', 'number', '复读跟读概率 %', ''],
+  ['reread_suppression_seconds', 'number', '最近指纹抑制（秒）', '0 保留旧行为；正数到期后重新累计'],
+  ['mute_threshold', 'number', '闭嘴判定阈值 %', ''],
+  ['unmute_threshold', 'number', '解除闭嘴阈值 %', ''],
+  ['cool_check_msgs', 'number', 'muted 冷却检测条数', ''],
+  ['cool_minutes', 'number', 'muted 冷却检测窗口（分钟）', ''],
+  ['energy_enabled', 'bool', '启用精力系统', ''],
+  ['energy_max', 'number', '精力上限', ''],
+  ['energy_gamma', 'number', '精力系数指数 γ', ''],
+  ['energy_recover_by_msg', 'bool', '按消息恢复精力', ''],
+  ['energy_recover_msgs', 'number', '每 N 条消息恢复一次', ''],
+  ['energy_recover_per_msgs', 'number', '每次恢复点数（按消息）', ''],
+  ['energy_recover_by_time', 'bool', '按时间恢复精力', ''],
+  ['energy_recover_per_min', 'number', '每分钟恢复点数', ''],
+  ['end_threshold', 'number', '对话结束判定阈值 %', ''],
+  ['batch_max', 'number', '结束判定缓冲上限（条）', ''],
+  ['context_messages', 'number', '发给 Jev 的近期消息条数', ''],
+  ['debug_log', 'bool', '决策日志输出到控制台', ''],
+];
+
+function renderScalarForm() {
+  document.getElementById('scalarForm').innerHTML = SCALAR_FIELDS.map(([key, type, label, hint]) => {
+    let field;
+    if (type === 'bool') {
+      field = `<label class="switch"><input type="checkbox" data-key="${key}" ${cfg[key] ? 'checked' : ''} onchange="cfg['${key}']=this.checked"><span class="sl"></span></label>`;
+    } else if (type === 'list') {
+      const arr = cfg[key] || [];
+      field = renderTagPreview(arr, `openScalarListModal('${key}', '${esc(label)}')`);
+    } else if (type === 'number') {
+      field = `<input type="number" step="any" data-key="${key}" value="${cfg[key] ?? ''}" onchange="cfg['${key}']=parseFloat(this.value)||0">`;
+    } else {
+      field = `<input type="text" data-key="${key}" value="${esc(cfg[key] ?? '')}" onchange="cfg['${key}']=this.value">`;
+    }
+    return `<div class="row"><div class="label">${esc(label)}${hint ? `<span class="hint">${esc(hint)}</span>` : ''}</div><div class="field">${field}</div></div>`;
+  }).join('');
+}
+
+// ---------- 标签胶囊组件 & 弹窗 ----------
+function renderTagPreview(words, onClickJs) {
+  if (!words || !words.length) {
+    return `<div class="tag-preview-wrap">
+      <span class="tag-empty">（暂无关键词）</span>
+      <button type="button" class="btn-tag-manage" onclick="${onClickJs}">＋ 添加词汇</button>
+    </div>`;
+  }
+  const show = words.slice(0, 2);
+  const remaining = words.length - show.length;
+  const pills = show.map(w => `<span class="tag-pill">${esc(w)}</span>`).join('');
+  const countBadge = remaining > 0 ? `<span class="tag-count">+${remaining}</span>` : '';
+  return `<div class="tag-preview-wrap">
+    ${pills} ${countBadge}
+    <button type="button" class="btn-tag-manage" onclick="${onClickJs}">管理词汇</button>
+  </div>`;
+}
+
+let activeTagContext = null; // { title, getList, setList, onSave }
+
+function openWordsModal(topicIdx) {
+  const t = topics[topicIdx];
+  activeTagContext = {
+    title: `话题【${t.name || t.key}】关键词`,
+    getList: () => t.words || [],
+    setList: (newList) => { t.words = newList; },
+    onSave: () => renderTopics()
+  };
+  renderTagModal();
+}
+
+function openScalarListModal(key, label) {
+  activeTagContext = {
+    title: label,
+    getList: () => cfg[key] || [],
+    setList: (newList) => { cfg[key] = newList; },
+    onSave: () => renderScalarForm()
+  };
+  renderTagModal();
+}
+
+function renderTagModal() {
+  if (!activeTagContext) return;
+  const list = activeTagContext.getList();
+  const wrap = document.getElementById('modalWrap');
+  wrap.innerHTML = `
+    <div class="modal-overlay" onclick="closeTagModal()">
+      <div class="modal-window" onclick="event.stopPropagation()">
+        <div class="modal-header">
+          <span>🏷️ 管理词表：${esc(activeTagContext.title)}</span>
+          <button class="btn icon" onclick="closeTagModal()">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="tag-add-bar">
+            <input type="text" id="modalTagInput" placeholder="输入词汇，按回车快速添加..." onkeydown="if(event.key==='Enter'){event.preventDefault();addModalTag();}">
+            <button class="btn primary" onclick="addModalTag()">添加</button>
+          </div>
+          <div class="modal-tag-box" id="modalTagBox">
+            ${list.map((w, idx) => `
+              <span class="modal-tag-item">
+                <span>${esc(w)}</span>
+                <span class="del-tag" title="删除" onclick="deleteModalTag(${idx})">×</span>
+              </span>
+            `).join('') || '<div style="color:var(--muted);padding:10px 0;width:100%;text-align:center;">暂无词汇，请在上方输入添加</div>'}
+          </div>
+          <details class="batch-box">
+            <summary>📝 批量导入 / 粘贴导入</summary>
+            <textarea id="batchTagInput" placeholder="在此粘贴多个词汇，支持空格、逗号或换行分隔..."></textarea>
+            <div style="text-align:right;margin-top:6px;">
+              <button class="btn" onclick="importBatchTags()">导入全部词汇</button>
+            </div>
+          </details>
+        </div>
+        <div class="modal-footer">
+          <span style="font-size:12px;color:var(--muted)">当前共 ${list.length} 个词汇</span>
+          <button class="btn primary" onclick="closeTagModal()">完成</button>
+        </div>
+      </div>
+    </div>
+  `;
+  setTimeout(() => {
+    const input = document.getElementById('modalTagInput');
+    if (input) input.focus();
+  }, 50);
+}
+
+function addModalTag() {
+  const input = document.getElementById('modalTagInput');
+  const val = (input.value || '').trim();
+  if (!val) return;
+  const list = activeTagContext.getList();
+  if (!list.includes(val)) {
+    list.push(val);
+    activeTagContext.setList(list);
+    renderTagModal();
+  } else {
+    toast('该词汇已存在', true);
+  }
+  input.value = '';
+}
+
+function deleteModalTag(idx) {
+  const list = activeTagContext.getList();
+  list.splice(idx, 1);
+  activeTagContext.setList(list);
+  renderTagModal();
+}
+
+function importBatchTags() {
+  const txt = document.getElementById('batchTagInput').value || '';
+  const newWords = txt.split(/[\n,，\s]+/).map(s => s.trim()).filter(Boolean);
+  if (!newWords.length) return;
+  const list = activeTagContext.getList();
+  let added = 0;
+  for (const w of newWords) {
+    if (!list.includes(w)) {
+      list.push(w);
+      added++;
+    }
+  }
+  activeTagContext.setList(list);
+  toast(`已成功导入 ${added} 个新词`);
+  renderTagModal();
+}
+
+function closeTagModal() {
+  if (activeTagContext && activeTagContext.onSave) {
+    activeTagContext.onSave();
+  }
+  activeTagContext = null;
+  document.getElementById('modalWrap').innerHTML = '';
+}
+
+// ---------- 话题表 ----------
+function renderTopics() {
+  document.getElementById('topicCount').textContent = `${topics.length} 个话题`;
+  const tbody = document.querySelector('#topicTable tbody');
+  tbody.innerHTML = topics.map((t, i) => `
+    <tr>
+      <td><input type="text" style="width:110px" value="${esc(t.key)}" onchange="topics[${i}].key=this.value.trim()"></td>
+      <td><input type="text" style="width:85px" value="${esc(t.name)}" onchange="topics[${i}].name=this.value"></td>
+      <td>${renderTagPreview(t.words || [], `openWordsModal(${i})`)}</td>
+      <td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="range" min="0" max="10" step="1" value="${t.score}" style="flex:1"
+                 oninput="topics[${i}].score=parseInt(this.value);this.nextElementSibling.textContent=this.value">
+          <span style="font-weight:600;width:16px">${t.score}</span>
+        </div>
+      </td>
+      <td><input type="number" style="width:80px" min="0" value="${t.cooldown_seconds || 0}" onchange="topics[${i}].cooldown_seconds=parseInt(this.value)||0"></td>
+      <td style="text-align:center"><label class="switch"><input type="checkbox" ${t.is_question ? 'checked' : ''} onchange="topics[${i}].is_question=this.checked"><span class="sl"></span></label></td>
+      <td><button class="btn icon danger" title="删除话题" onclick="topics.splice(${i},1);renderTopics()">🗑</button></td>
+    </tr>`).join('');
+}
+
+function addTopic() {
+  topics.push({ key: 'new_topic_' + Date.now().toString(36), name: '新话题', words: [], score: 3, cooldown_seconds: 0, is_question: false });
+  renderTopics();
+}
+
+// ---------- 高清稳固正方形曲线编辑器（支持全动态坐标与数值列表） ----------
+class CurveEditor {
+  constructor(canvasId, infoId, pointsListId, xMaxInputId, yMaxInputId, points, options) {
+    this.cv = document.getElementById(canvasId);
+    this.infoEl = document.getElementById(infoId);
+    this.pointsListEl = document.getElementById(pointsListId);
+    this.xMaxInput = document.getElementById(xMaxInputId);
+    this.yMaxInput = document.getElementById(yMaxInputId);
+    this.points = points;   // 引用外部点列数组
+    this.opt = {
+      xMin: 0, xMax: 500, defaultXMax: 500, xUnit: '', xTitle: 'X',
+      yMin: 0, yMax: 90, defaultYMax: 90, yUnit: '', yTitle: 'Y',
+      editorVar: '',
+      ...options
+    };
+    this.dragIdx = -1;
+    this.pad = { l: 52, r: 24, t: 26, b: 38 };
+    this.syncInputs();
+    this._bind();
+    this.renderPointsList();
+    this.draw();
+    window.addEventListener('resize', () => this.draw());
+  }
+
+  syncInputs() {
+    if (this.xMaxInput) this.xMaxInput.value = this.opt.xMax;
+    if (this.yMaxInput) this.yMaxInput.value = this.opt.yMax;
+  }
+
+  // 手动调整 X / Y 轴上限
+  setLimits(newXMax, newYMax) {
+    if (newXMax !== null && !isNaN(newXMax) && newXMax > 0) {
+      this.opt.xMax = Math.round(newXMax);
+    }
+    if (newYMax !== null && !isNaN(newYMax) && newYMax > 0) {
+      this.opt.yMax = Math.round(newYMax);
+    }
+    // 若当前点有点位超出新上限，自动扩充以容纳
+    const xs = this.points.map(p => p[0]), ys = this.points.map(p => p[1]);
+    if (xs.length && Math.max(...xs) > this.opt.xMax) {
+      this.opt.xMax = Math.ceil(Math.max(...xs) / 50) * 50;
+    }
+    if (ys.length && Math.max(...ys) > this.opt.yMax) {
+      this.opt.yMax = Math.ceil(Math.max(...ys) / 10) * 10;
+    }
+    this.syncInputs();
+    this.draw();
+    this.renderPointsList();
+  }
+
+  // 自动适应当前点
+  fitPoints() {
+    const xs = this.points.map(p => p[0]), ys = this.points.map(p => p[1]);
+    const maxPtX = xs.length ? Math.max(...xs) : this.opt.defaultXMax;
+    const maxPtY = ys.length ? Math.max(...ys) : this.opt.defaultYMax;
+    this.opt.xMax = Math.max(this.opt.defaultXMax, Math.ceil(maxPtX / 50) * 50);
+    this.opt.yMax = Math.max(this.opt.defaultYMax, Math.ceil(maxPtY / 10) * 10);
+    this.syncInputs();
+    this.draw();
+    this.renderPointsList();
+    toast('已按当前点自动缩放坐标系');
+  }
+
+  range() {
+    const xs = this.points.map(p => p[0]), ys = this.points.map(p => p[1]);
+    const maxPtX = xs.length ? Math.max(...xs) : this.opt.xMax;
+    const maxPtY = ys.length ? Math.max(...ys) : this.opt.yMax;
+    return {
+      x0: this.opt.xMin,
+      x1: Math.max(this.opt.xMax, maxPtX),
+      y0: this.opt.yMin,
+      y1: Math.max(this.opt.yMax, maxPtY)
+    };
+  }
+
+  toPx(x, y, r) {
+    const w = this.cv.clientWidth - this.pad.l - this.pad.r;
+    const h = this.cv.clientHeight - this.pad.t - this.pad.b;
+    return [
+      this.pad.l + ((x - r.x0) / (r.x1 - r.x0)) * w,
+      this.pad.t + h - ((y - r.y0) / (r.y1 - r.y0)) * h
+    ];
+  }
+
+  toVal(px, py, r) {
+    const w = this.cv.clientWidth - this.pad.l - this.pad.r;
+    const h = this.cv.clientHeight - this.pad.t - this.pad.b;
+    return [
+      r.x0 + ((px - this.pad.l) / w) * (r.x1 - r.x0),
+      r.y0 + ((this.pad.t + h - py) / h) * (r.y1 - r.y0)
+    ];
+  }
+
+  interp(x) {
+    const pts = [...this.points].sort((a, b) => a[0] - b[0]);
+    if (!pts.length) return 0;
+    if (x <= pts[0][0]) return pts[0][1];
+    if (x >= pts[pts.length - 1][0]) return pts[pts.length - 1][1];
+    for (let i = 1; i < pts.length; i++) {
+      const [x1, y1] = pts[i - 1], [x2, y2] = pts[i];
+      if (x >= x1 && x <= x2) return y1 + ((x - x1) / (x2 - x1)) * (y2 - y1);
+    }
+    return pts[pts.length - 1][1];
+  }
+
+  draw() {
+    const dpr = window.devicePixelRatio || 1;
+    const cssW = this.cv.clientWidth || 380;
+    const cssH = this.cv.clientHeight || 380;
+    if (this.cv.width !== Math.round(cssW * dpr) || this.cv.height !== Math.round(cssH * dpr)) {
+      this.cv.width = Math.round(cssW * dpr);
+      this.cv.height = Math.round(cssH * dpr);
+    }
+    const ctx = this.cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cssW, cssH);
+
+    const r = this.range();
+    const plotW = cssW - this.pad.l - this.pad.r;
+    const plotH = cssH - this.pad.t - this.pad.b;
+
+    // 1. 绘制网格与坐标刻度（5 等分）
+    ctx.strokeStyle = '#eef1f6';
+    ctx.lineWidth = 1;
+    ctx.fillStyle = '#8a91a6';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+
+    // 水平网格 (Y 轴刻度) - 5 等分
+    const yDivs = 5;
+    for (let i = 0; i <= yDivs; i++) {
+      const val = r.y0 + (r.y1 - r.y0) * (i / yDivs);
+      const py = this.pad.t + plotH - (i / yDivs) * plotH;
+      ctx.beginPath();
+      ctx.moveTo(this.pad.l, py);
+      ctx.lineTo(cssW - this.pad.r, py);
+      ctx.stroke();
+      const valStr = (val % 1 === 0) ? val.toFixed(0) : val.toFixed(1);
+      ctx.fillText(valStr, this.pad.l - 7, py);
+    }
+
+    // 垂直网格 (X 轴刻度) - 5 等分
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    const xDivs = 5;
+    for (let i = 0; i <= xDivs; i++) {
+      const val = r.x0 + (r.x1 - r.x0) * (i / xDivs);
+      const px = this.pad.l + (i / xDivs) * plotW;
+      ctx.beginPath();
+      ctx.moveTo(px, this.pad.t);
+      ctx.lineTo(px, this.pad.t + plotH);
+      ctx.stroke();
+      const valStr = (val % 1 === 0) ? val.toFixed(0) : val.toFixed(1);
+      ctx.fillText(valStr, px, this.pad.t + plotH + 8);
+    }
+
+    // 坐标轴边框
+    ctx.strokeStyle = '#d9dfea';
+    ctx.strokeRect(this.pad.l, this.pad.t, plotW, plotH);
+
+    // 坐标轴单位与标题
+    ctx.fillStyle = '#4e5969';
+    ctx.font = '11px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText(`${this.opt.yTitle}${this.opt.yUnit ? ` (${this.opt.yUnit})` : ''}`, this.pad.l, this.pad.t - 8);
+
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'top';
+    ctx.fillText(`${this.opt.xTitle}${this.opt.xUnit ? ` (${this.opt.xUnit})` : ''} →`, cssW - this.pad.r, this.pad.t + plotH + 22);
+
+    const pts = [...this.points].sort((a, b) => a[0] - b[0]);
+
+    // 2. 面积图填充 (柔和浅蓝)
+    if (pts.length >= 2) {
+      ctx.save();
+      ctx.beginPath();
+      const first = this.toPx(pts[0][0], pts[0][1], r);
+      ctx.moveTo(first[0], this.pad.t + plotH);
+      ctx.lineTo(first[0], first[1]);
+      for (let i = 1; i < pts.length; i++) {
+        const p = this.toPx(pts[i][0], pts[i][1], r);
+        ctx.lineTo(p[0], p[1]);
+      }
+      const last = this.toPx(pts[pts.length - 1][0], pts[pts.length - 1][1], r);
+      ctx.lineTo(last[0], this.pad.t + plotH);
+      ctx.closePath();
+      const grad = ctx.createLinearGradient(0, this.pad.t, 0, this.pad.t + plotH);
+      grad.addColorStop(0, 'rgba(76, 111, 255, 0.22)');
+      grad.addColorStop(1, 'rgba(76, 111, 255, 0.02)');
+      ctx.fillStyle = grad;
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // 3. 折线
+    ctx.strokeStyle = '#4c6fff';
+    ctx.lineWidth = 2.5;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    pts.forEach((p, i) => {
+      const [px, py] = this.toPx(p[0], p[1], r);
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+    });
+    ctx.stroke();
+
+    // 4. 控制点与数值标注
+    pts.forEach(p => {
+      const [px, py] = this.toPx(p[0], p[1], r);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.strokeStyle = '#4c6fff';
+      ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.arc(px, py, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+
+      const label = `(${p[0]}${this.opt.xUnit ? this.opt.xUnit : ''}, ${p[1]}${this.opt.yUnit ? this.opt.yUnit : ''})`;
+      ctx.font = '10px sans-serif';
+      const textW = ctx.measureText(label).width;
+
+      ctx.fillStyle = 'rgba(43, 50, 69, 0.85)';
+      const bx = Math.min(Math.max(px - textW / 2 - 4, this.pad.l), cssW - this.pad.r - textW - 8);
+      const by = Math.max(py - 24, this.pad.t + 2);
+      ctx.fillRect(bx, by, textW + 8, 16);
+
+      ctx.fillStyle = '#ffffff';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, bx + 4, by + 8);
+    });
+
+    const midX = Math.round((r.x0 + r.x1) / 2);
+    this.infoEl.innerHTML = `插值参考示例：<b>x = ${midX}${this.opt.xUnit}</b> 时，输出 <b>y = ${this.interp(midX).toFixed(1)}${this.opt.yUnit}</b>`;
+  }
+
+  // 渲染下方的控制点输入框列表
+  renderPointsList() {
+    if (!this.pointsListEl) return;
+    this.points.sort((a, b) => a[0] - b[0]);
+    this.pointsListEl.innerHTML = this.points.map((p, idx) => `
+      <div class="point-row">
+        <span class="pt-idx">#${idx + 1}</span>
+        <span>${this.opt.xTitle}:</span>
+        <input type="number" step="any" min="0" value="${p[0]}"
+               onchange="${this.opt.editorVar}.updatePoint(${idx}, parseFloat(this.value), null)">
+        <span>${this.opt.xUnit}</span>
+        <span style="color:var(--muted);margin:0 4px">→</span>
+        <span>${this.opt.yTitle}:</span>
+        <input type="number" step="any" min="0" value="${p[1]}"
+               onchange="${this.opt.editorVar}.updatePoint(${idx}, null, parseFloat(this.value))">
+        <span>${this.opt.yUnit}</span>
+        <span class="del-pt" title="删除该点" onclick="${this.opt.editorVar}.removePoint(${idx})">×</span>
+      </div>
+    `).join('');
+  }
+
+  updatePoint(idx, newX, newY) {
+    if (idx < 0 || idx >= this.points.length) return;
+    if (newX !== null && !isNaN(newX)) {
+      this.points[idx][0] = Math.max(0, Math.round(newX));
+      if (this.points[idx][0] > this.opt.xMax) {
+        this.opt.xMax = Math.ceil(this.points[idx][0] / 50) * 50;
+        this.syncInputs();
+      }
+    }
+    if (newY !== null && !isNaN(newY)) {
+      this.points[idx][1] = Math.max(0, Math.round(newY * 10) / 10);
+      if (this.points[idx][1] > this.opt.yMax) {
+        this.opt.yMax = Math.ceil(this.points[idx][1] / 10) * 10;
+        this.syncInputs();
+      }
+    }
+    this.points.sort((a, b) => a[0] - b[0]);
+    this.draw();
+    this.renderPointsList();
+  }
+
+  addPointAuto() {
+    const pts = [...this.points].sort((a, b) => a[0] - b[0]);
+    let newX = 100, newY = 20;
+    if (pts.length >= 2) {
+      newX = Math.round((pts[pts.length - 1][0] + pts[pts.length - 2][0]) / 2);
+      newY = Math.round(this.interp(newX) * 10) / 10;
+    }
+    this.points.push([newX, newY]);
+    this.points.sort((a, b) => a[0] - b[0]);
+    this.draw();
+    this.renderPointsList();
+  }
+
+  removePoint(idx) {
+    if (this.points.length <= 2) {
+      toast('至少保留 2 个端点', true);
+      return;
+    }
+    this.points.splice(idx, 1);
+    this.draw();
+    this.renderPointsList();
+  }
+
+  _pos(e) {
+    const rect = this.cv.getBoundingClientRect();
+    return [e.clientX - rect.left, e.clientY - rect.top];
+  }
+
+  _hit(px, py) {
+    const r = this.range();
+    for (let i = 0; i < this.points.length; i++) {
+      const [x, y] = this.toPx(this.points[i][0], this.points[i][1], r);
+      if (Math.hypot(x - px, y - py) <= 12) return i;
+    }
+    return -1;
+  }
+
+  _bind() {
+    this.cv.addEventListener('pointerdown', e => {
+      const [px, py] = this._pos(e);
+      const idx = this._hit(px, py);
+      if (idx >= 0) {
+        this.dragIdx = idx;
+        this.cv.setPointerCapture(e.pointerId);
+      } else {
+        // 单击空白处加点
+        const r = this.range();
+        const [vx, vy] = this.toVal(px, py, r);
+        if (px >= this.pad.l && px <= this.cv.clientWidth - this.pad.r &&
+            py >= this.pad.t && py <= this.cv.clientHeight - this.pad.b) {
+          const newX = Math.max(0, Math.round(vx));
+          const newY = Math.max(0, Math.round(vy * 10) / 10);
+          this.points.push([newX, newY]);
+          this.points.sort((a, b) => a[0] - b[0]);
+          this.draw();
+          this.renderPointsList();
+        }
+      }
+    });
+
+    this.cv.addEventListener('pointermove', e => {
+      if (this.dragIdx < 0) return;
+      const [px, py] = this._pos(e);
+      const r = this.range();
+      const [vx, vy] = this.toVal(px, py, r);
+      const clampedX = Math.max(0, Math.min(r.x1, Math.round(vx)));
+      const clampedY = Math.max(0, Math.min(r.y1, Math.round(vy * 10) / 10));
+      this.points[this.dragIdx] = [clampedX, clampedY];
+      this.draw();
+    });
+
+    this.cv.addEventListener('pointerup', () => {
+      if (this.dragIdx >= 0) {
+        this.points.sort((a, b) => a[0] - b[0]);
+        this.dragIdx = -1;
+        this.draw();
+        this.renderPointsList();
+      }
+    });
+
+    this.cv.addEventListener('dblclick', e => {
+      const [px, py] = this._pos(e);
+      const idx = this._hit(px, py);
+      if (idx >= 0) {
+        this.removePoint(idx);
+      }
+    });
+  }
+}
+
+let timeoutEditor = null, energyEditor = null;
+
+// ---------- Jev 测试 ----------
+async function testJev() {
+  await saveAll(true);
+  const el = document.getElementById('jevTestRes');
+  el.className = 'test-result'; el.innerText = '测试中…';
+  try {
+    const r = await reqApi('POST', 'test_jev', {});
+    el.classList.add(r.success ? 'ok' : 'fail');
+    el.innerText = (r.success ? '✅ ' : '❌ ') + (r.detail || r.error || '');
+  } catch (e) {
+    el.classList.add('fail'); el.innerText = '❌ ' + e.message;
+  }
+}
+
+// ---------- 决策日志 / 状态 ----------
+async function loadLogs() {
+  try {
+    const r = await reqApi('GET', 'logs');
+    const tbody = document.querySelector('#logTable tbody');
+    if (!r.success) { toast('加载日志失败', true); return; }
+    const logs = (r.logs || []).slice().reverse();
+    tbody.innerHTML = logs.map(l => {
+      const detail = { ...l };
+      delete detail.ts; delete detail.group; delete detail.msg; delete detail.result;
+      return `<tr>
+        <td style="white-space:nowrap">${new Date(l.ts * 1000).toLocaleTimeString()}</td>
+        <td style="white-space:nowrap">${esc(l.group)}</td>
+        <td>${esc(l.msg)}</td>
+        <td style="font-weight:600">${esc(l.result)}</td>
+        <td style="max-width:380px;word-break:break-all;font-size:11px;color:#555">${esc(JSON.stringify(detail))}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="5" style="color:var(--muted);text-align:center;padding:16px;">暂无日志</td></tr>';
+  } catch (e) { toast('加载日志失败: ' + e.message, true); }
+}
+
+async function loadStatus() {
+  try {
+    const r = await reqApi('GET', 'status');
+    const tbody = document.querySelector('#statusTable tbody');
+    if (!r.success) { toast('加载状态失败', true); return; }
+    tbody.innerHTML = (r.groups || []).map(g => {
+      const cds = Object.entries(g.topic_cooldowns || {})
+        .map(([k, s]) => `${k}: ${Math.floor(s / 60)}分${s % 60}秒`).join('；') || '—';
+      return `<tr>
+        <td>${esc(g.group)}</td>
+        <td><b>${g.energy}</b> / ${g.energy_max}</td>
+        <td>${g.muted ? '<span class="tag warn">muted</span>' : '<span class="tag">正常</span>'}</td>
+        <td>${g.conversation ? '<span class="tag">会话中</span>' : '<span class="tag off">—</span>'}</td>
+        <td>${g.heat_5min} 条/5分</td>
+        <td>${esc(cds)}</td>
+      </tr>`;
+    }).join('') || '<tr><td colspan="6" style="color:var(--muted);text-align:center;padding:16px;">暂无群状态</td></tr>';
+  } catch (e) { toast('加载状态失败: ' + e.message, true); }
+}
+
+// ---------- Jev 提示词默认模板与渲染 ----------
+const DEFAULT_PROMPTS = {
+  prompt_wake_value: "bot此刻回复能带来多大价值？原则：技术问答价值高；礼仪祝福永远适合参与；资讯和游戏话题bot知识可能滞后，价值低；情感倾诉需要的是人类陪伴，bot回复价值低；玩梗bot容易接得生硬。若bot自己刚说过类似的话，回复价值极低；若用户正在与其他人或另一个Bot交流，回复价值极低。",
+  prompt_wake_natural: "以群友身份此刻插话是否自然？若bot刚才已回复过类似内容，极不自然；若大家在热烈私聊、话题与bot无关，或用户正在与另一个Bot交流，突兀；若话题开放或气氛冷清，自然。",
+  prompt_end_conversation: "bot是否应彻底结束当前对话，不再主动回复？以下情况应结束：用户明确表示要结束/道别/不用了（如'行了没事了'、'一边玩去吧'、'好的'、'拜拜'等）/ 对话自然完结 / 话题已彻底转变与bot无关。以下情况不应结束：对方继续向bot提问、搭话或回应bot上一次发言。",
+  prompt_skip_reply: "用户当前发言是否正在与其他人/另一个Bot交流（如提到别人的名字、艾特了别人、正在回应别人），或者当前不需要本bot插话，本bot应该暂时跳过本次回复并保持安静？",
+  prompt_shutup: "这句话是否是在要求bot（{bot_name}）停止说话/闭嘴/不要参与聊天？注意结合上下文，bot最近的回复是：{recent}",
+  prompt_unmute: "这句话是否是在允许/要求bot（{bot_name}）恢复说话/解除闭嘴？"
+};
+
+function renderPromptFields() {
+  document.getElementById('p_wake_value').value = cfg.prompt_wake_value || DEFAULT_PROMPTS.prompt_wake_value;
+  document.getElementById('p_wake_natural').value = cfg.prompt_wake_natural || DEFAULT_PROMPTS.prompt_wake_natural;
+  document.getElementById('p_end_conv').value = cfg.prompt_end_conversation || DEFAULT_PROMPTS.prompt_end_conversation;
+  document.getElementById('p_skip_reply').value = cfg.prompt_skip_reply || DEFAULT_PROMPTS.prompt_skip_reply;
+  document.getElementById('p_shutup').value = cfg.prompt_shutup || DEFAULT_PROMPTS.prompt_shutup;
+  document.getElementById('p_unmute').value = cfg.prompt_unmute || DEFAULT_PROMPTS.prompt_unmute;
+}
+
+function resetDefaultPrompts() {
+  document.getElementById('p_wake_value').value = DEFAULT_PROMPTS.prompt_wake_value;
+  document.getElementById('p_wake_natural').value = DEFAULT_PROMPTS.prompt_wake_natural;
+  document.getElementById('p_end_conv').value = DEFAULT_PROMPTS.prompt_end_conversation;
+  document.getElementById('p_skip_reply').value = DEFAULT_PROMPTS.prompt_skip_reply;
+  document.getElementById('p_shutup').value = DEFAULT_PROMPTS.prompt_shutup;
+  document.getElementById('p_unmute').value = DEFAULT_PROMPTS.prompt_unmute;
+  toast('已填入默认提示词（点击保存全部配置后生效）');
+}
+
+// ---------- 保存 / 加载 ----------
+async function saveAll(quiet) {
+  try {
+    cfg.jev_channel = document.getElementById('c_jev_channel').value;
+    cfg.jev_base_url = document.getElementById('c_jev_base_url').value.trim();
+    cfg.jev_model = document.getElementById('c_jev_model').value.trim();
+    cfg.jev_api_keys = document.getElementById('c_jev_api_keys').value.split('\n').map(s => s.trim()).filter(Boolean);
+    cfg.jev_timeout = parseInt(document.getElementById('c_jev_timeout').value) || 30;
+    cfg.key_cooldown_seconds = parseInt(document.getElementById('c_key_cooldown_seconds').value) || 300;
+    cfg.topics = topics;
+    cfg.timeout_curve = timeoutCurve;
+    cfg.energy_cost_curve = energyCurve;
+    cfg.timeout_curve_x_max = timeoutEditor ? timeoutEditor.opt.xMax : 500;
+    cfg.timeout_curve_y_max = timeoutEditor ? timeoutEditor.opt.yMax : 90;
+    cfg.energy_curve_x_max = energyEditor ? energyEditor.opt.xMax : 100;
+    cfg.energy_curve_y_max = energyEditor ? energyEditor.opt.yMax : 60;
+    cfg.prompt_wake_value = document.getElementById('p_wake_value').value.trim();
+    cfg.prompt_wake_natural = document.getElementById('p_wake_natural').value.trim();
+    cfg.prompt_end_conversation = document.getElementById('p_end_conv').value.trim();
+    cfg.prompt_skip_reply = document.getElementById('p_skip_reply').value.trim();
+    cfg.prompt_shutup = document.getElementById('p_shutup').value.trim();
+    cfg.prompt_unmute = document.getElementById('p_unmute').value.trim();
+    const r = await reqApi('POST', 'config/save', { config: cfg });
+    if (!quiet) toast(r.success ? '✅ 已保存全部配置' : ('保存失败: ' + (r.error || '')), !r.success);
+    return r.success;
+  } catch (e) {
+    if (!quiet) toast('保存失败: ' + e.message, true);
+    return false;
+  }
+}
+document.getElementById('saveBtn').onclick = () => saveAll(false);
+document.getElementById('reloadBtn').onclick = () => init();
+
+async function init() {
+  await initBridge();
+  try {
+    const r = await reqApi('GET', 'config');
+    if (!r.success) { toast('加载配置失败: ' + (r.error || ''), true); return; }
+    cfg = r.config || {};
+    topics = cfg.topics || [];
+    timeoutCurve = cfg.timeout_curve && cfg.timeout_curve.length ? cfg.timeout_curve : [[0, 10], [300, 60]];
+    energyCurve = cfg.energy_cost_curve && cfg.energy_cost_curve.length ? cfg.energy_cost_curve : [[100, 10], [20, 40]];
+
+    document.getElementById('c_jev_channel').value = cfg.jev_channel || 'official';
+    document.getElementById('c_jev_base_url').value = cfg.jev_base_url ?? '';
+    document.getElementById('c_jev_model').value = cfg.jev_model ?? 'jev-1.13.0';
+    document.getElementById('c_jev_api_keys').value = (cfg.jev_api_keys || []).join('\n');
+    document.getElementById('c_jev_timeout').value = cfg.jev_timeout ?? 30;
+    document.getElementById('c_key_cooldown_seconds').value = cfg.key_cooldown_seconds ?? 300;
+
+    renderScalarForm();
+    renderTopics();
+    renderPromptFields();
+
+    // 初始化高清稳固正方形曲线编辑器（带自定义上限及点位列表）
+    const maxTimeoutPtX = Math.max(...timeoutCurve.map(p => p[0]), 500);
+    const maxTimeoutPtY = Math.max(...timeoutCurve.map(p => p[1]), 90);
+    const timeoutXMax = cfg.timeout_curve_x_max || maxTimeoutPtX;
+    const timeoutYMax = cfg.timeout_curve_y_max || maxTimeoutPtY;
+
+    timeoutEditor = new CurveEditor('timeoutCurve', 'timeoutInfo', 'timeoutPointsList', 'timeout_x_max', 'timeout_y_max', timeoutCurve, {
+      xMin: 0, xMax: timeoutXMax, defaultXMax: 500, xUnit: '字', xTitle: '回复字数',
+      yMin: 0, yMax: timeoutYMax, defaultYMax: 90, yUnit: '秒', yTitle: '超时时长',
+      editorVar: 'timeoutEditor'
+    });
+
+    const maxEnergyPtX = Math.max(...energyCurve.map(p => p[0]), cfg.energy_max || 100);
+    const maxEnergyPtY = Math.max(...energyCurve.map(p => p[1]), 60);
+    const energyXMax = cfg.energy_curve_x_max || maxEnergyPtX;
+    const energyYMax = cfg.energy_curve_y_max || maxEnergyPtY;
+
+    energyEditor = new CurveEditor('energyCurve', 'energyInfo', 'energyPointsList', 'energy_x_max', 'energy_y_max', energyCurve, {
+      xMin: 0, xMax: energyXMax, defaultXMax: 100, xUnit: '点', xTitle: '当前精力',
+      yMin: 0, yMax: energyYMax, defaultYMax: 60, yUnit: '消耗', yTitle: '精力消耗',
+      editorVar: 'energyEditor'
+    });
+
+    loadLogs();
+    loadStatus();
+  } catch (e) { toast('初始化失败: ' + e.message, true); }
+}
+init();
+</script>
+</body>
+</html>

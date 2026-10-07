@@ -1,0 +1,252 @@
+{
+  "jev_channel": {
+    "type": "string",
+    "description": "Jev API 通道",
+    "default": "official",
+    "options": ["official", "openrouter"],
+    "hint": "official=TypeSafe AI 官方直连；openrouter=OpenRouter 中转（模型自动映射为 typesafe/jev-1.13）"
+  },
+  "jev_base_url": {
+    "type": "string",
+    "description": "Jev API 地址",
+    "default": "https://api.typesafe.ai",
+    "hint": "可填中转地址；openrouter 通道默认 https://openrouter.ai"
+  },
+  "jev_model": {
+    "type": "string",
+    "description": "Jev 模型 ID",
+    "default": "jev-1.13.0"
+  },
+  "jev_api_keys": {
+    "type": "list",
+    "description": "Jev API Key 列表",
+    "default": [],
+    "hint": "多个 key 自动轮询，失败的 key 冷却一段时间后重试"
+  },
+  "jev_timeout": {
+    "type": "int",
+    "description": "Jev 请求超时（秒）",
+    "default": 30
+  },
+  "key_cooldown_seconds": {
+    "type": "int",
+    "description": "Key 失败冷却（秒）",
+    "default": 300
+  },
+  "bot_name": {
+    "type": "string",
+    "description": "bot 在群里的主要称呼",
+    "default": "Mikachiyo",
+    "hint": "写进发给 Jev 的上下文，帮助判定闭嘴/解除语义"
+  },
+  "bot_names": {
+    "type": "list",
+    "description": "bot 在群里的称呼/昵称列表",
+    "default": ["Mikachiyo"],
+    "hint": "支持添加多个称呼或别名，写进 Jev 上下文帮助精准识别"
+  },
+  "ignore_at_other": {
+    "type": "bool",
+    "description": "艾特其他人时主动跳过",
+    "default": true,
+    "hint": "当群消息中明确艾特了其他人或另一个Bot时，跳过唤醒/回复"
+  },
+  "bot_persona": {
+    "type": "string",
+    "description": "bot 人格简述",
+    "default": ""
+  },
+  "group_whitelist": {
+    "type": "list",
+    "description": "群白名单",
+    "default": [],
+    "hint": "留空 = 全部群启用"
+  },
+  "group_blacklist": {
+    "type": "list",
+    "description": "群/用户黑名单",
+    "default": []
+  },
+  "fallback_probability": {
+    "type": "int",
+    "description": "零命中兜底概率（%）",
+    "default": 10,
+    "hint": "没有任何话题命中时，以此概率把消息交给 Jev 判定"
+  },
+  "hot_threshold": {
+    "type": "int",
+    "description": "热度 hot 阈值（5 分钟消息数）",
+    "default": 20
+  },
+  "cold_threshold": {
+    "type": "int",
+    "description": "热度 cold 阈值（5 分钟消息数）",
+    "default": 5
+  },
+  "heat_hot_casual": { "type": "float", "description": "热度系数 hot·闲聊", "default": 0.5 },
+  "heat_hot_question": { "type": "float", "description": "热度系数 hot·问答", "default": 1.0 },
+  "heat_cold_casual": { "type": "float", "description": "热度系数 cold·闲聊", "default": 1.3 },
+  "heat_cold_question": { "type": "float", "description": "热度系数 cold·问答", "default": 1.0 },
+  "festival_grace_minutes": {
+    "type": "int",
+    "description": "节日观望期（分钟）",
+    "default": 10
+  },
+  "festival_cooldown_hours": {
+    "type": "int",
+    "description": "节日话题冷却（小时）",
+    "default": 24
+  },
+  "reread_enabled": {
+    "type": "bool",
+    "description": "启用复读跟读",
+    "default": true
+  },
+  "reread_text_threshold": { "type": "int", "description": "文本复读触发条数", "default": 4 },
+  "reread_image_threshold": { "type": "int", "description": "图片复读触发条数", "default": 3 },
+  "reread_face_threshold": { "type": "int", "description": "表情复读触发条数", "default": 2 },
+  "reread_follow_probability": {
+    "type": "int",
+    "description": "复读跟读概率（%）",
+    "default": 80
+  },
+  "reread_suppression_seconds": {
+    "type": "float",
+    "description": "最近复读指纹抑制秒数（0 保留旧行为；正数到期后重新累计）",
+    "default": 0
+  },
+  "mute_threshold": {
+    "type": "int",
+    "description": "闭嘴判定置信度阈值（%）",
+    "default": 50
+  },
+  "unmute_threshold": {
+    "type": "int",
+    "description": "解除闭嘴置信度阈值（%）",
+    "default": 60
+  },
+  "cool_check_msgs": {
+    "type": "int",
+    "description": "muted 冷却检测消息条数",
+    "default": 10
+  },
+  "cool_minutes": {
+    "type": "int",
+    "description": "muted 冷却检测窗口（分钟）",
+    "default": 3
+  },
+  "energy_enabled": { "type": "bool", "description": "启用精力系统", "default": true },
+  "energy_max": { "type": "int", "description": "精力上限", "default": 100 },
+  "energy_gamma": {
+    "type": "float",
+    "description": "精力系数指数 γ",
+    "default": 2.0,
+    "hint": "精力系数 = (当前精力/上限)^γ，作用于最终抽签"
+  },
+  "energy_recover_by_msg": { "type": "bool", "description": "按消息恢复精力", "default": true },
+  "energy_recover_msgs": { "type": "int", "description": "每 N 条消息恢复一次", "default": 10 },
+  "energy_recover_per_msgs": { "type": "int", "description": "每次恢复点数（按消息）", "default": 5 },
+  "energy_recover_by_time": { "type": "bool", "description": "按时间恢复精力", "default": true },
+  "energy_recover_per_min": { "type": "int", "description": "每分钟恢复点数", "default": 3 },
+  "end_threshold": {
+    "type": "int",
+    "description": "对话结束判定置信度阈值（%）",
+    "default": 60
+  },
+  "batch_max": {
+    "type": "int",
+    "description": "conversation 结束判定缓冲上限（条）",
+    "default": 20
+  },
+  "context_messages": {
+    "type": "int",
+    "description": "发给 Jev 的近期消息条数",
+    "default": 15
+  },
+  "shutup_words": {
+    "type": "list",
+    "description": "闭嘴候选词",
+    "default": ["闭嘴", "别说话", "别说了", "安静", "别插嘴", "烦死", "吵死", "别回", "不用你"]
+  },
+  "unmute_words": {
+    "type": "list",
+    "description": "解除闭嘴候选词",
+    "default": ["可以说话了", "不用闭嘴了", "解除闭嘴", "出来吧", "说话吧"]
+  },
+  "must_wake_words": {
+    "type": "list",
+    "description": "必唤醒词",
+    "default": [],
+    "hint": "命中直接唤醒，不走任何抽签"
+  },
+  "debug_log": {
+    "type": "bool",
+    "description": "决策日志详细输出到控制台",
+    "default": false
+  },
+  "prompt_wake_value": {
+    "type": "text",
+    "description": "Jev唤醒·回复价值问题提示词",
+    "default": "bot此刻回复能带来多大价值？原则：技术问答价值高；礼仪祝福永远适合参与；资讯和游戏话题bot知识可能滞后，价值低；情感倾诉需要的是人类陪伴，bot回复价值低；玩梗bot容易接得生硬。若bot自己刚说过类似的话，回复价值极低；若用户正在与其他人或另一个Bot交流，回复价值极低。"
+  },
+  "prompt_wake_natural": {
+    "type": "text",
+    "description": "Jev唤醒·插话自然度问题提示词",
+    "default": "以群友身份此刻插话是否自然？若bot刚才已回复过类似内容，极不自然；若大家在热烈私聊、话题与bot无关，或用户正在与另一个Bot交流，突兀；若话题开放或气氛冷清，自然。"
+  },
+  "prompt_end_conversation": {
+    "type": "text",
+    "description": "Jev会话·结束对话判定提示词",
+    "default": "bot是否应彻底结束当前对话，不再主动回复？以下情况应结束：用户明确表示要结束/道别/不用了（如'行了没事了'、'一边玩去吧'、'好的'、'拜拜'等）/ 对话自然完结 / 话题已彻底转变与bot无关。以下情况不应结束：对方继续向bot提问、搭话或回应bot上一次发言。"
+  },
+  "prompt_skip_reply": {
+    "type": "text",
+    "description": "Jev会话·跳过本轮回复提示词",
+    "default": "用户当前发言是否正在与其他人/另一个Bot交流（如提到别人的名字、艾特了别人、正在回应别人），或者当前不需要本bot插话，本bot应该暂时跳过本次回复并保持安静？"
+  },
+  "prompt_shutup": {
+    "type": "text",
+    "description": "Jev闭嘴判定提示词",
+    "default": "这句话是否是在要求bot（{bot_name}）停止说话/闭嘴/不要参与聊天？注意结合上下文，bot最近的回复是：{recent}"
+  },
+  "prompt_unmute": {
+    "type": "text",
+    "description": "Jev解除闭嘴判定提示词",
+    "default": "这句话是否是在允许/要求bot（{bot_name}）恢复说话/解除闭嘴？"
+  },
+  "topics": {
+    "type": "list",
+    "description": "话题评分与关键词表",
+    "default": []
+  },
+  "timeout_curve": {
+    "type": "list",
+    "description": "对话超时曲线点位列表",
+    "default": [[0, 10], [300, 60]]
+  },
+  "energy_cost_curve": {
+    "type": "list",
+    "description": "精力消耗曲线点位列表",
+    "default": [[100, 10], [20, 40]]
+  },
+  "timeout_curve_x_max": {
+    "type": "int",
+    "description": "对话超时曲线 X 轴上限（字数）",
+    "default": 500
+  },
+  "timeout_curve_y_max": {
+    "type": "int",
+    "description": "对话超时曲线 Y 轴上限（秒）",
+    "default": 90
+  },
+  "energy_curve_x_max": {
+    "type": "int",
+    "description": "精力消耗曲线 X 轴上限（点）",
+    "default": 100
+  },
+  "energy_curve_y_max": {
+    "type": "int",
+    "description": "精力消耗曲线 Y 轴上限（消耗）",
+    "default": 60
+  }
+}

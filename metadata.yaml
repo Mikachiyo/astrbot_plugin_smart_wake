@@ -1,0 +1,5 @@
+name: astrbot_plugin_smart_wake
+desc: 智能主动唤醒：关键词抽签 + Jev 模型判定两级漏斗，让 bot 主动参与群聊，含复读跟读、conversation 态、闭嘴状态机与精力系统
+version: v1.0.0
+author: Mikachiyo
+repo: https://github.com/Mikachiyo/astrbot_plugin_smart_wake
