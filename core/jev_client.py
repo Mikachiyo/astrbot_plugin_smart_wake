@@ -108,7 +108,7 @@ class JevClient:
         """dashboard 测试连接：发一条最小请求。"""
         state = {"bot_name": "测试", "recent_messages": ["A: 你好"]}
         questions = {"ping": {"type": "noul", "instructions": "这句话是问候吗？",
-                              "criteria": {"true": "是问候", "false": None}}}
+                              "criteria": {"true": "是问候", "false": "不是问候"}}}
         try:
             data = await self.decide(state, questions)
         except Exception as e:
